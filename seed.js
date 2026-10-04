@@ -4,9 +4,10 @@ const { hashPassword } = require("../src/utils/crypto");
 const config = require("../src/config");
 
 const CATEGORIES = [
-  "Jobs","Businesses & Services","Property","Plots & Land","Schools & Education",
-  "Vehicles","Products","Events","Entertainment","Construction","Professional Services",
-  "Agriculture","Promotions","Digital"
+  "Jobs","Businesses","Services","Businesses & Services","Property","Plots & Land",
+  "Houses for Sale","Houses for Rent","Schools & Education","Vehicles","Products",
+  "Events","Entertainment","Events/Entertainment","Construction","Professional Services",
+  "Agriculture","Promotions","Specials","Promotions/Specials","Digital","Digital Products","Advertising"
 ];
 
 async function ensureOwner(o) {

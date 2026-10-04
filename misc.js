@@ -155,6 +155,94 @@ router.patch("/seller/whatsapp", requireAuth, async (req, res) => {
   res.json({ whatsapp: wa, whatsapp_enabled: en });
 });
 
+
+router.get("/privacy", (_req, res) => {
+  res.json({
+    title: "Mmarakeng Privacy Policy",
+    version: "1.0",
+    body: "Mmarakeng processes account data (name, phone, email), listings, messages, Lockbox room data, payments metadata, and analytics needed to operate the marketplace. Lockbox content is limited to authorized participants under normal operation; exceptional lawful access is logged. Payment provider credentials are never stored in the client. Data is held on the central backend and database. Contact support for account requests. This summary is not legal advice."
+  });
+});
+
+router.post("/businesses", requireAuth, async (req, res) => {
+  const b = req.body || {};
+  if (!b.business_name) return res.status(400).json({ error: "business_name required." });
+  const { rows } = await query(
+    `INSERT INTO businesses (user_id, business_name, owner_name, phone, physical_location, category, status, whatsapp, whatsapp_enabled)
+     VALUES ($1,$2,$3,$4,$5,$6,'submitted',$7,$8) RETURNING *`,
+    [req.user.id, String(b.business_name).trim(), b.owner_name || req.user.full_name, b.phone || req.user.phone,
+     b.physical_location || b.location || null, b.category || null, b.whatsapp || null, !!b.whatsapp_enabled]
+  );
+  res.status(201).json({ business: rows[0] });
+});
+
+router.get("/businesses/mine", requireAuth, async (req, res) => {
+  const { rows } = await query(`SELECT * FROM businesses WHERE user_id = $1 ORDER BY created_at DESC`, [req.user.id]);
+  res.json({ businesses: rows });
+});
+
+router.get("/conversations", requireAuth, async (req, res) => {
+  const { rows } = await query(
+    `SELECT c.*, 
+      CASE WHEN c.user_a = $1 THEN c.user_b ELSE c.user_a END AS peer_id
+     FROM conversations c
+     WHERE c.user_a = $1 OR c.user_b = $1
+     ORDER BY c.updated_at DESC LIMIT 100`,
+    [req.user.id]
+  );
+  const out = [];
+  for (const c of rows) {
+    const peer = await query(`SELECT id, full_name, phone FROM users WHERE id = $1`, [c.peer_id]);
+    out.push({ ...c, peer: peer.rows[0] });
+  }
+  res.json({ conversations: out });
+});
+
+router.post("/conversations", requireAuth, async (req, res) => {
+  const peerId = req.body?.user_id;
+  if (!peerId || peerId === req.user.id) return res.status(400).json({ error: "Valid peer user_id required." });
+  const existing = await query(
+    `SELECT * FROM conversations WHERE (user_a = $1 AND user_b = $2) OR (user_a = $2 AND user_b = $1) LIMIT 1`,
+    [req.user.id, peerId]
+  );
+  if (existing.rows[0]) return res.json({ conversation: existing.rows[0] });
+  const { rows } = await query(
+    `INSERT INTO conversations (user_a, user_b, listing_id, product_id) VALUES ($1,$2,$3,$4) RETURNING *`,
+    [req.user.id, peerId, req.body?.listing_id || null, req.body?.product_id || null]
+  );
+  res.status(201).json({ conversation: rows[0] });
+});
+
+router.get("/conversations/:id/messages", requireAuth, async (req, res) => {
+  const { rows: conv } = await query(`SELECT * FROM conversations WHERE id = $1`, [req.params.id]);
+  if (!conv[0] || (conv[0].user_a !== req.user.id && conv[0].user_b !== req.user.id)) {
+    return res.status(403).json({ error: "Not authorized." });
+  }
+  const { rows } = await query(
+    `SELECT * FROM messages WHERE conversation_id = $1 ORDER BY created_at ASC LIMIT 500`,
+    [req.params.id]
+  );
+  res.json({ messages: rows });
+});
+
+router.post("/conversations/:id/messages", requireAuth, async (req, res) => {
+  const { rows: conv } = await query(`SELECT * FROM conversations WHERE id = $1`, [req.params.id]);
+  if (!conv[0] || (conv[0].user_a !== req.user.id && conv[0].user_b !== req.user.id)) {
+    return res.status(403).json({ error: "Not authorized." });
+  }
+  const body = String(req.body?.body || "").trim();
+  if (!body) return res.status(400).json({ error: "Message required." });
+  const { rows } = await query(
+    `INSERT INTO messages (conversation_id, from_user_id, body) VALUES ($1,$2,$3) RETURNING *`,
+    [req.params.id, req.user.id, body.slice(0, 5000)]
+  );
+  await query(`UPDATE conversations SET last_message = $1, updated_at = NOW() WHERE id = $2`, [body.slice(0, 200), req.params.id]);
+  const peer = conv[0].user_a === req.user.id ? conv[0].user_b : conv[0].user_a;
+  await notify(peer, "New message", body.slice(0, 80), "/#/messages");
+  res.status(201).json({ message: rows[0] });
+});
+
+
 router.get("/terms", (_req, res) => {
   res.json({
     title: "Mmarakeng Terms of Use",

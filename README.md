@@ -279,3 +279,27 @@ If the owner revokes a member while that member is offline, the device may keep 
 - Persist a local message queue across restarts.
 - On reconnect: call `/rooms/:id/sync` with pending `client_message_id`s.
 - Do not claim Delivered until server accepts the message.
+
+---
+
+## Security, GPS, Distress & Timed Auth (update)
+
+### NPM registry
+`package-lock.json` must resolve only from `https://registry.npmjs.org/`.  
+Project includes `.npmrc` with that registry. Do not use private proxy IPs.
+
+### Digital files
+`/uploads/digital` is **not** publicly static. Downloads go through authenticated `/api/digital/...` with purchase checks.
+
+### Timed Sequence Authentication
+Optional second factor: `PUT /api/timed-auth/profile`, `POST /api/timed-auth/verify`.  
+Stores hash of steps + intervals; verification uses configurable tolerance (default 800ms). Does not replace password login.
+
+### Location / Maps
+`/api/location/*` — user location, near-listings foundation, Google Maps **navigation URL** helper (client opens Maps). Keys via env only.
+
+### Distress
+`/api/distress/*` — contacts, activate, evidence upload/download (authz), nearest-help returns `not_configured` until a real emergency provider is connected.
+
+### Delivery
+`/api/delivery/*` — IDOR-protected delivery coordinates and navigation URLs for authorized seller/customer only.

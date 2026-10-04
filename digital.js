@@ -160,8 +160,24 @@ router.get("/:id/download", requireAuth, async (req, res) => {
   if (owned.rows[0]) {
     await query(`UPDATE digital_purchases SET downloads = downloads + 1, last_download_at = NOW() WHERE id = $1`, [owned.rows[0].id]);
   }
-  const abs = path.join(process.cwd(), p.file_path.replace(/^\//, ""));
+  let rel = String(p.file_path || "").replace(/^\/+/, "");
+  if (rel.includes("..") || path.isAbsolute(p.file_path || "")) {
+    return res.status(400).json({ error: "Invalid file reference." });
+  }
+  const abs = path.resolve(process.cwd(), rel);
+  const root = path.resolve(process.cwd(), "uploads", "digital");
+  if (!abs.startsWith(root + path.sep) && abs !== root) {
+    return res.status(400).json({ error: "Invalid file reference." });
+  }
   if (!fs.existsSync(abs)) return res.status(404).json({ error: "File missing on server." });
+  try {
+    await query(
+      `INSERT INTO digital_download_log (product_id, user_id, purchase_id, ip) VALUES ($1,$2,$3,$4)`,
+      [p.id, req.user.id, owned.rows[0] ? owned.rows[0].id : null, req.ip]
+    );
+  } catch (_) {}
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Content-Disposition", "attachment; filename=\"" + (p.file_name || path.basename(abs)).replace(/"/g, "") + "\"");
   res.download(abs, p.file_name || path.basename(abs));
 });
 

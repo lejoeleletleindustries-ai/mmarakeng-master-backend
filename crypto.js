@@ -11,8 +11,8 @@ function verifyPassword(password, hash) {
   return bcrypt.compareSync(String(password), hash || "");
 }
 
-function signToken(payload, expiresIn = "30d") {
-  return jwt.sign(payload, config.jwtSecret, { expiresIn });
+function signToken(payload, expiresIn) {
+  return jwt.sign(payload, config.jwtSecret, { expiresIn: expiresIn || config.jwtExpiresIn || "7d" });
 }
 
 function verifyToken(token) {
