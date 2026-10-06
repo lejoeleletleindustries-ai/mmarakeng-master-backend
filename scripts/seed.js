@@ -78,7 +78,7 @@ async function main() {
   await query(
     `INSERT INTO app_settings (key, value) VALUES ('about_credit', $1)
      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
-    ["MMARAKENG is an application built/designed by Lejwele Le Te Industries and Origin Dot App Series."]
+    ["MMARAKENG is an application built/designed by Lejoele le letle Industries and Origin Dot App Series."]
   );
 
   console.log("Seed complete.");
