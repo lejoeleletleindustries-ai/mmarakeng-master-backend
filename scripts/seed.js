@@ -15,9 +15,9 @@ async function ensureOwner(o) {
     console.log("Skip owner (no password env):", o.email);
     return;
   }
-  const existing = await query("SELECT id FROM users WHERE email = $1 OR phone = $2", [o.email, o.phone]);
+  await query(`UPDATE users SET role = 'owner', is_owner = TRUE, full_name = $1 WHERE id = $2`, [o.name, existing.rows[0].id]);, [o.email, o.phone]);
   if (existing.rows[0]) {
-    await query(`UPDATE users SET role = 'owner', is_owner = TRUE, full_name = $1 WHERE id = $2`, [o.name, existing.rows[0].id]);
+    , [o.name, existing.rows[0].id]);
     console.log("Owner ready:", o.email);
     return;
   }
